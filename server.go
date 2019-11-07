@@ -14,6 +14,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"debug"
 
 	"github.com/light24/go-guerrilla/backends"
 	"github.com/light24/go-guerrilla/log"
@@ -261,7 +262,7 @@ func (s *server) Start(startWG *sync.WaitGroup) error {
 		go func(p Poolable, borrowErr error) {
 			defer func() {
 				if r := recover(); r != nil {
-					Println("Error ", r, " ", string(debug.Stack()))
+					println("Error ", r, " ", string(debug.Stack()))
 				}
 			}()
 
