@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/flashmob/go-guerrilla/mail"
+	"github.com/light24/go-guerrilla/mail"
 )
 
 // ----------------------------------------------------------------------------------

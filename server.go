@@ -15,11 +15,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/flashmob/go-guerrilla/backends"
-	"github.com/flashmob/go-guerrilla/log"
-	"github.com/flashmob/go-guerrilla/mail"
-	"github.com/flashmob/go-guerrilla/mail/rfc5321"
-	"github.com/flashmob/go-guerrilla/response"
+	"github.com/light24/go-guerrilla/backends"
+	"github.com/light24/go-guerrilla/log"
+	"github.com/light24/go-guerrilla/mail"
+	"github.com/light24/go-guerrilla/mail/rfc5321"
+	"github.com/light24/go-guerrilla/response"
 )
 
 const (
@@ -259,6 +259,12 @@ func (s *server) Start(startWG *sync.WaitGroup) error {
 			continue
 		}
 		go func(p Poolable, borrowErr error) {
+			defer func() {
+				if r := recover(); r != nil {
+					Println("Error ", r, " ", string(debug.Stack()))
+				}
+			}()
+
 			c := p.(*client)
 			if borrowErr == nil {
 				s.handleClient(c)

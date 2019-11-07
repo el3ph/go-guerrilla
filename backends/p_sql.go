@@ -6,13 +6,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/flashmob/go-guerrilla/mail"
+	"github.com/light24/go-guerrilla/mail"
 
 	"math/big"
 	"net"
 	"runtime/debug"
 
-	"github.com/flashmob/go-guerrilla/response"
+	"github.com/light24/go-guerrilla/response"
 )
 
 // ----------------------------------------------------------------------------------
