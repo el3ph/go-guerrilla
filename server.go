@@ -14,7 +14,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"debug"
+	"runtime/debug"
 
 	"github.com/light24/go-guerrilla/backends"
 	"github.com/light24/go-guerrilla/log"
