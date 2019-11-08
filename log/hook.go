@@ -139,10 +139,25 @@ func (hook *LogrusHook) openCreate(dest string) (err error) {
 	return
 }
 
+type LogCallback func(entry *log.Entry) error
+
+var logCallback LogCallback
+
+func SetCallbackLog(inLogCallback LogCallback) {
+	hookMu.Lock()
+	defer hookMu.Unlock()
+
+	logCallback = inLogCallback
+}
+
 // Fire implements the logrus Hook interface. It disables color text formatting if writing to a file
 func (hook *LogrusHook) Fire(entry *log.Entry) error {
 	hookMu.Lock()
 	defer hookMu.Unlock()
+
+	if logCallback != nil {
+		return logCallback(entry)
+	}
 
 	line, err := entry.String()
 
