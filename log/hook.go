@@ -2,18 +2,24 @@ package log
 
 import (
 	"bufio"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"io/ioutil"
 	"os"
 	"strings"
 	"sync"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // custom logrus hook
 
 // hookMu ensures all io operations are synced. Always on exported functions
 var hookMu sync.Mutex
+
+// send log data to callback
+type LogCallback func(entry *log.Entry) error
+
+var logCallback LogCallback
 
 // LoggerHook extends the log.Hook interface by adding Reopen() and Rename()
 type LoggerHook interface {
@@ -67,6 +73,10 @@ func (o OutputOption) String() string {
 }
 
 func parseOutputOption(str string) OutputOption {
+	if logCallback != nil {
+		return OutputFile
+	}
+
 	switch str {
 	case "stderr":
 		return OutputStderr
@@ -83,6 +93,11 @@ func parseOutputOption(str string) OutputOption {
 // Setup sets the hook's writer w and file descriptor fd
 // assumes the hook.fd is closed and nil
 func (hook *LogrusHook) setup(dest string) error {
+	if logCallback != nil {
+		hook.w = ioutil.Discard
+		hook.plainTxtFormatter = &log.TextFormatter{DisableColors: true}
+		return nil
+	}
 
 	out := parseOutputOption(dest)
 	if out == OutputNull || out == OutputStderr {
@@ -113,6 +128,10 @@ func (hook *LogrusHook) setup(dest string) error {
 
 // openAppend opens the dest file for appending. Default to os.Stderr if it can't open dest
 func (hook *LogrusHook) openAppend(dest string) (err error) {
+	if logCallback != nil {
+		return nil
+	}
+
 	fd, err := os.OpenFile(dest, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		log.WithError(err).Error("Could not open log file for appending")
@@ -127,6 +146,10 @@ func (hook *LogrusHook) openAppend(dest string) (err error) {
 
 // openCreate creates a new dest file for appending. Default to os.Stderr if it can't open dest
 func (hook *LogrusHook) openCreate(dest string) (err error) {
+	if logCallback != nil {
+		return nil
+	}
+
 	fd, err := os.OpenFile(dest, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	if err != nil {
 		log.WithError(err).Error("Could not create log file")
@@ -138,10 +161,6 @@ func (hook *LogrusHook) openCreate(dest string) (err error) {
 	hook.fd = fd
 	return
 }
-
-type LogCallback func(entry *log.Entry) error
-
-var logCallback LogCallback
 
 func SetCallbackLog(inLogCallback LogCallback) {
 	hookMu.Lock()
@@ -186,6 +205,10 @@ func (hook *LogrusHook) Levels() []log.Level {
 
 // Reopen closes and re-open log file descriptor, which is a special feature of this hook
 func (hook *LogrusHook) Reopen() error {
+	if logCallback != nil {
+		return nil
+	}
+
 	hookMu.Lock()
 	defer hookMu.Unlock()
 	var err error
@@ -202,5 +225,4 @@ func (hook *LogrusHook) Reopen() error {
 		return hook.openAppend(hook.fname)
 	}
 	return err
-
 }
