@@ -176,6 +176,9 @@ func (e *Envelope) ResetTransaction() {
 	e.RcptTo = []Address{}
 	// reset the data buffer, keep it allocated
 	e.Data.Reset()
+	if e.Data.Cap() > 1024*1024 {
+		e.Data = bytes.Buffer{}
+	}
 
 	// todo: these are probably good candidates for buffers / use sync.Pool (after profiling)
 	e.Subject = ""
