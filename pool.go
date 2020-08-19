@@ -19,7 +19,7 @@ type Poolable interface {
 	// ability to set read/write timeout
 	setTimeout(t time.Duration) error
 	// set a new connection and client id
-	init(c net.Conn, clientID uint64, ep *mail.Pool)
+	init(c net.Conn, clientID uint64, ep *mail.Pool, listenInterface string)
 	// get a unique id
 	getID() uint64
 	kill()
@@ -127,7 +127,7 @@ func (p *Pool) GetActiveClientsCount() int {
 }
 
 // Borrow a Client from the pool. Will block if len(activeClients) > maxClients
-func (p *Pool) Borrow(conn net.Conn, clientID uint64, logger log.Logger, ep *mail.Pool) (Poolable, error) {
+func (p *Pool) Borrow(conn net.Conn, clientID uint64, logger log.Logger, ep *mail.Pool, listenInterface string) (Poolable, error) {
 	p.poolGuard.Lock()
 	defer p.poolGuard.Unlock()
 
@@ -140,9 +140,9 @@ func (p *Pool) Borrow(conn net.Conn, clientID uint64, logger log.Logger, ep *mai
 	case p.sem <- true: // block the client from serving until there is room
 		select {
 		case c = <-p.pool:
-			c.init(conn, clientID, ep)
+			c.init(conn, clientID, ep, listenInterface)
 		default:
-			c = NewClient(conn, clientID, logger, ep)
+			c = NewClient(conn, clientID, logger, ep, listenInterface)
 		}
 		p.activeClientsAdd(c)
 

@@ -279,7 +279,7 @@ func (s *server) Start(startWG *sync.WaitGroup) error {
 			}
 			// intentionally placed Borrow in args so that it's called in the
 			// same main goroutine.
-		}(s.clientPool.Borrow(conn, clientID, s.log(), s.envelopePool))
+		}(s.clientPool.Borrow(conn, clientID, s.log(), s.envelopePool, s.listenInterface))
 
 	}
 }
