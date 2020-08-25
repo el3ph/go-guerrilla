@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -46,6 +47,7 @@ type server struct {
 	configStore     atomic.Value // stores guerrilla.ServerConfig
 	tlsConfigStore  atomic.Value
 	timeout         atomic.Value // stores time.Duration
+	Ddos            DdosProtection
 	listenInterface string
 	clientPool      *Pool
 	wg              sync.WaitGroup // for waiting to shutdown
@@ -92,6 +94,7 @@ func newServer(sc *ServerConfig, b backends.Backend, mainlog log.Logger) (*serve
 	server := &server{
 		clientPool:      NewPool(sc.MaxClients),
 		closedListener:  make(chan bool, 1),
+		Ddos:            sc.Ddos,
 		listenInterface: sc.ListenInterface,
 		state:           ServerStateNew,
 		envelopePool:    mail.NewPool(sc.MaxClients),
@@ -241,6 +244,8 @@ func (s *server) Start(startWG *sync.WaitGroup) error {
 	s.state = ServerStateRunning
 	startWG.Done() // start successful, don't wait for me
 
+	// DDOS protection
+	var connections map[string]int = make(map[string]int)
 	for {
 		s.log().Debugf("[%s] Waiting for a new client. Next Client ID: %d", s.listenInterface, clientID+1)
 		conn, err := listener.Accept()
@@ -259,6 +264,32 @@ func (s *server) Start(startWG *sync.WaitGroup) error {
 			s.mainlog().WithError(err).Info("Temporary error accepting client")
 			continue
 		}
+
+		// DDOS protection: max connections
+		if s.Ddos.MaxDeliveryConnections != 0 {
+			if len(connections) /*s.GetActiveClientsCount()*/ >= s.Ddos.MaxDeliveryConnections {
+				var ip string = getRemoteAddr(conn)
+				ddosListener(DdosEventMaxDeliveryConnections, ip, int(clientID))
+				_ = conn.Close()
+				continue
+			}
+		}
+
+		// DDOS protection: max connections per ip
+		if s.Ddos.MaxConnections != 0 {
+			var ip string = getRemoteAddr(conn)
+			if connections[ip] >= s.Ddos.MaxConnections {
+				ddosListener(DdosEventMaxConnections, ip, int(clientID))
+				_ = conn.Close()
+				continue
+			}
+		}
+
+		if s.Ddos.MaxDeliveryConnections != 0 || s.Ddos.MaxConnections != 0 {
+			var ip string = getRemoteAddr(conn)
+			connections[ip]++
+		}
+
 		go func(p Poolable, borrowErr error) {
 			defer func() {
 				if r := recover(); r != nil {
@@ -275,7 +306,13 @@ func (s *server) Start(startWG *sync.WaitGroup) error {
 				s.log().WithError(borrowErr).Info("couldn't borrow a new client")
 				// we could not get a client, so close the connection.
 				_ = conn.Close()
+			}
 
+			if s.Ddos.MaxDeliveryConnections != 0 || s.Ddos.MaxConnections != 0 {
+				connections[c.RemoteIP]--
+				if connections[c.RemoteIP] == 0 {
+					delete(connections, c.RemoteIP)
+				}
 			}
 			// intentionally placed Borrow in args so that it's called in the
 			// same main goroutine.
@@ -408,6 +445,10 @@ func (s *server) handleClient(client *client) {
 				s.log().WithError(err).Warnf("Client closed the connection: %s", client.RemoteIP)
 				return
 			} else if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				// DDOS protection: connection timeout
+				if sc.Ddos.TimeoutReception != 0 {
+					ddosListener(DdosEventTimeoutReception, client.RemoteIP, int(client.ID))
+				}
 				s.log().WithError(err).Warnf("Timeout: %s", client.RemoteIP)
 				return
 			} else if err == LineLimitExceeded {
@@ -553,6 +594,13 @@ func (s *server) handleClient(client *client) {
 			if n > sc.MaxSize {
 				err = fmt.Errorf("maximum DATA size exceeded (%d)", sc.MaxSize)
 			}
+
+			// DDOS protection
+			if n > int64(sc.Ddos.MaxMessageSize) {
+				ddosListener(DdosEventMaxMessageSize, client.RemoteIP, int(client.ID))
+				err = errors.New("Message size exceeds fixed maximum message size")
+			}
+
 			if err != nil {
 				if err == LineLimitExceeded {
 					client.sendResponse(r.FailReadLimitExceededDataCmd, " ", LineLimitExceeded.Error())

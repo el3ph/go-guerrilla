@@ -33,10 +33,20 @@ type AppConfig struct {
 	BackendConfig backends.BackendConfig `json:"backend_config"`
 }
 
+type DdosProtection struct {
+	MaxConnections         int `json:"MaxConnections"`
+	MaxMessageInConnection int `json:"MaxMessageInConnection"`
+	MaxMessageSize         int `json:"MaxMessageSize"`
+	MaxDeliveryConnections int `json:"MaxDeliveryConnections"`
+	TimeoutReception       int `json:"TimeoutReception"`
+}
+
 // ServerConfig specifies config options for a single server
 type ServerConfig struct {
 	// TLS Configuration
 	TLS ServerTLSConfig `json:"tls,omitempty"`
+	// Callback function that called when ddos event detected
+	Ddos DdosProtection `json:"DdosProtection,omitempty"`
 	// LogFile is where the logs go. Use path to file, or "stderr", "stdout" or "off".
 	// defaults to AppConfig.Log file setting
 	LogFile string `json:"log_file,omitempty"`
