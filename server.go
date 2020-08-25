@@ -632,7 +632,7 @@ func (s *server) handleClient(client *client) {
 
 			// DDOS protection: max message in connection
 			if connectionMessagesSent > sc.Ddos.MaxMessageInConnection {
-				ddosListener(DdosEventTimeoutReception, client.RemoteIP, int(client.ID))
+				ddosListener(DdosEventMaxMessageInConnection, client.RemoteIP, int(client.ID))
 
 				client.sendResponse(r.FailMaximumMsgPerConnection)
 				client.kill()
