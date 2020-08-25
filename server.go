@@ -11,11 +11,11 @@ import (
 	"io/ioutil"
 	"net"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
-	"runtime/debug"
 
 	"github.com/light24/go-guerrilla/backends"
 	"github.com/light24/go-guerrilla/log"
@@ -245,6 +245,7 @@ func (s *server) Start(startWG *sync.WaitGroup) error {
 	startWG.Done() // start successful, don't wait for me
 
 	// DDOS protection
+	var mConnections sync.Mutex
 	var connections map[string]int = make(map[string]int)
 	for {
 		s.log().Debugf("[%s] Waiting for a new client. Next Client ID: %d", s.listenInterface, clientID+1)
@@ -287,7 +288,9 @@ func (s *server) Start(startWG *sync.WaitGroup) error {
 
 		if s.Ddos.MaxDeliveryConnections != 0 || s.Ddos.MaxConnections != 0 {
 			var ip string = getRemoteAddr(conn)
+			mConnections.Lock()
 			connections[ip]++
+			mConnections.Unlock()
 		}
 
 		go func(p Poolable, borrowErr error) {
@@ -309,10 +312,12 @@ func (s *server) Start(startWG *sync.WaitGroup) error {
 			}
 
 			if s.Ddos.MaxDeliveryConnections != 0 || s.Ddos.MaxConnections != 0 {
+				mConnections.Lock()
 				connections[c.RemoteIP]--
 				if connections[c.RemoteIP] == 0 {
 					delete(connections, c.RemoteIP)
 				}
+				mConnections.Unlock()
 			}
 			// intentionally placed Borrow in args so that it's called in the
 			// same main goroutine.
