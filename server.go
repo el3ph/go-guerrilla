@@ -436,6 +436,8 @@ func (s *server) handleClient(client *client) {
 		// STARTTLS turned off, don't advertise it
 		advertiseTLS = ""
 	}
+
+	var connectionMessagesSent int = 0
 	r := response.Canned
 	for client.isAlive() {
 		switch client.state {
@@ -625,7 +627,18 @@ func (s *server) handleClient(client *client) {
 			res := s.backend().Process(client.Envelope)
 			if res.Code() < 300 {
 				client.messagesSent++
+				connectionMessagesSent++
 			}
+
+			// DDOS protection: max message in connection
+			if connectionMessagesSent > sc.Ddos.MaxMessageInConnection {
+				ddosListener(DdosEventTimeoutReception, client.RemoteIP, int(client.ID))
+
+				client.sendResponse(r.FailMaximumMsgPerConnection)
+				client.kill()
+				return
+			}
+
 			client.sendResponse(res)
 			client.state = ClientCmd
 			if s.isShuttingDown() {
