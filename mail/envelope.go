@@ -73,8 +73,6 @@ func NewAddress(str string) (Address, error) {
 
 // Envelope of Email represents a single SMTP message.
 type Envelope struct {
-	// Server ip:port for identify server
-	ListenInterface string
 	// Remote IP address
 	RemoteIP string
 	// Message sent in EHLO command
@@ -103,12 +101,11 @@ type Envelope struct {
 	sync.Mutex
 }
 
-func NewEnvelope(remoteAddr string, clientID uint64, listenInterface string) *Envelope {
+func NewEnvelope(remoteAddr string, clientID uint64) *Envelope {
 	return &Envelope{
-		ListenInterface: listenInterface,
-		RemoteIP:        remoteAddr,
-		Values:          make(map[string]interface{}),
-		QueuedId:        queuedID(clientID),
+		RemoteIP: remoteAddr,
+		Values:   make(map[string]interface{}),
+		QueuedId: queuedID(clientID),
 	}
 }
 
@@ -192,8 +189,7 @@ func (e *Envelope) ResetTransaction() {
 }
 
 // Reseed is called when used with a new connection, once it's accepted
-func (e *Envelope) Reseed(remoteIP string, clientID uint64, listenInterface string) {
-	e.ListenInterface = listenInterface
+func (e *Envelope) Reseed(remoteIP string, clientID uint64) {
 	e.RemoteIP = remoteIP
 	e.QueuedId = queuedID(clientID)
 	e.Helo = ""
@@ -279,14 +275,14 @@ func NewPool(poolSize int) *Pool {
 	}
 }
 
-func (p *Pool) Borrow(remoteAddr string, clientID uint64, listenInterface string) *Envelope {
+func (p *Pool) Borrow(remoteAddr string, clientID uint64) *Envelope {
 	var e *Envelope
 	p.sem <- true // block the envelope until more room
 	select {
 	case e = <-p.pool:
-		e.Reseed(remoteAddr, clientID, listenInterface)
+		e.Reseed(remoteAddr, clientID)
 	default:
-		e = NewEnvelope(remoteAddr, clientID, listenInterface)
+		e = NewEnvelope(remoteAddr, clientID)
 	}
 	return e
 }

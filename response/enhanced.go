@@ -138,7 +138,6 @@ type Responses struct {
 	FailBackendTransaction       *Response
 	FailBackendTimeout           *Response
 	FailRcptCmd                  *Response
-	FailMaximumMsgPerConnection  *Response
 
 	// The 400's
 	ErrorTooManyRecipients *Response
@@ -352,12 +351,6 @@ func init() {
 		Comment:      "User unknown in local recipient table",
 	}
 
-	Canned.FailMaximumMsgPerConnection = &Response{
-		EnhancedCode: OtherOrUndefinedProtocolStatus,
-		BasicCode:    554,
-		Class:        ClassPermanentFailure,
-		Comment:      "Maximum messages amount per connection exceeded",
-	}
 }
 
 // DefaultMap contains defined default codes (RfC 3463)
