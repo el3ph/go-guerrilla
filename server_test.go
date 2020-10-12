@@ -273,7 +273,7 @@ func TestHandleClient(t *testing.T) {
 	}
 	conn, server := getMockServerConn(sc, t)
 	// call the serve.handleClient() func in a goroutine.
-	client := NewClient(conn.Server, 1, mainlog, mail.NewPool(5))
+	client := NewClient(conn.Server, 1, mainlog, mail.NewPool(5), "")
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
@@ -314,7 +314,7 @@ func TestXClient(t *testing.T) {
 	}
 	conn, server := getMockServerConn(sc, t)
 	// call the serve.handleClient() func in a goroutine.
-	client := NewClient(conn.Server, 1, mainlog, mail.NewPool(5))
+	client := NewClient(conn.Server, 1, mainlog, mail.NewPool(5), "")
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {

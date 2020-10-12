@@ -211,6 +211,30 @@ func (d *Daemon) Log() log.Logger {
 
 }
 
+//
+const (
+	DdosEventMaxConnections         = 1
+	DdosEventMaxMessageInConnection = 2
+	DdosEventMaxMessageSize         = 3
+	DdosEventMaxDeliveryConnections = 4
+	DdosEventTimeoutReception       = 5
+)
+
+type DdosEvent int
+type DDosListenerFunc func(ddosEvent DdosEvent, host string, msgID int)
+
+var ddosCallback DDosListenerFunc = nil
+
+func SetDDosCallback(ddosListener DDosListenerFunc) {
+	ddosCallback = ddosListener
+}
+
+func ddosListener(ddosEvent DdosEvent, host string, msgID int) {
+	if ddosCallback != nil {
+		ddosCallback(ddosEvent, host, msgID)
+	}
+}
+
 // set the default values for the servers and backend config options
 func (d *Daemon) configureDefaults() error {
 	err := d.Config.setDefaults()
