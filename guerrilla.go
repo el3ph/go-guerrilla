@@ -6,6 +6,7 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/light24/go-guerrilla/backends"
 	"github.com/light24/go-guerrilla/log"
