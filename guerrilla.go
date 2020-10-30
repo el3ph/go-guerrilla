@@ -6,6 +6,7 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/light24/go-guerrilla/backends"
 	"github.com/light24/go-guerrilla/log"
@@ -479,6 +480,9 @@ func (g *guerrilla) Start() error {
 	}
 	// wait for all servers to start (or fail)
 	startWG.Wait()
+
+	// wait for error from s.Start
+	time.Sleep(3 * time.Second)
 
 	// close, then read any errors
 	close(errs)
