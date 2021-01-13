@@ -201,6 +201,11 @@ func (s *server) setTimeout(seconds int) {
 	s.timeout.Store(duration)
 }
 
+// Set the ddos for the server and all clients
+func (s *server) setDDOS(ddosProtection DdosProtection) {
+	s.Ddos = ddosProtection
+}
+
 // goroutine safe config store
 func (s *server) setConfig(sc *ServerConfig) {
 	s.configStore.Store(*sc)
