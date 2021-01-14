@@ -252,6 +252,7 @@ func (s *server) Start(startWG *sync.WaitGroup) error {
 	// DDOS protection
 	var mConnections sync.Mutex
 	var connections map[string]int = make(map[string]int)
+	var connectonsCount = 0
 	for {
 		s.log().Debugf("[%s] Waiting for a new client. Next Client ID: %d", s.listenInterface, clientID+1)
 		conn, err := listener.Accept()
@@ -273,7 +274,7 @@ func (s *server) Start(startWG *sync.WaitGroup) error {
 
 		// DDOS protection: max connections
 		if s.Ddos.MaxDeliveryConnections != 0 {
-			if len(connections) /*s.GetActiveClientsCount()*/ >= s.Ddos.MaxDeliveryConnections {
+			if connectonsCount /*s.GetActiveClientsCount()*/ >= s.Ddos.MaxDeliveryConnections {
 				var ip string = getRemoteAddr(conn)
 				ddosListener(DdosEventMaxDeliveryConnections, ip, int(clientID))
 				_ = conn.Close()
@@ -295,6 +296,7 @@ func (s *server) Start(startWG *sync.WaitGroup) error {
 			var ip string = getRemoteAddr(conn)
 			mConnections.Lock()
 			connections[ip]++
+			connectonsCount++
 			mConnections.Unlock()
 		}
 
@@ -319,6 +321,7 @@ func (s *server) Start(startWG *sync.WaitGroup) error {
 			if s.Ddos.MaxDeliveryConnections != 0 || s.Ddos.MaxConnections != 0 {
 				mConnections.Lock()
 				connections[c.RemoteIP]--
+				connectonsCount--
 				if connections[c.RemoteIP] == 0 {
 					delete(connections, c.RemoteIP)
 				}
