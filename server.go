@@ -273,30 +273,32 @@ func (s *server) Start(startWG *sync.WaitGroup) error {
 		}
 
 		// DDOS protection: max connections
+		var ip string = getRemoteAddr(conn)
 		if s.Ddos.MaxDeliveryConnections != 0 {
+			mConnections.Lock()
 			if connectonsCount /*s.GetActiveClientsCount()*/ >= s.Ddos.MaxDeliveryConnections {
-				var ip string = getRemoteAddr(conn)
+				mConnections.Unlock()
 				ddosListener(DdosEventMaxDeliveryConnections, ip, int(clientID))
 				_ = conn.Close()
 				continue
 			}
+			connectonsCount++
+			mConnections.Unlock()
 		}
 
 		// DDOS protection: max connections per ip
 		if s.Ddos.MaxConnections != 0 {
-			var ip string = getRemoteAddr(conn)
+			mConnections.Lock()
 			if connections[ip] >= s.Ddos.MaxConnections {
+				mConnections.Unlock()
 				ddosListener(DdosEventMaxConnections, ip, int(clientID))
 				_ = conn.Close()
 				continue
 			}
-		}
-
-		if s.Ddos.MaxDeliveryConnections != 0 || s.Ddos.MaxConnections != 0 {
-			var ip string = getRemoteAddr(conn)
-			mConnections.Lock()
+			if _, ok := connections[ip]; !ok {
+				connections[ip] = 0
+			}
 			connections[ip]++
-			connectonsCount++
 			mConnections.Unlock()
 		}
 
@@ -304,6 +306,16 @@ func (s *server) Start(startWG *sync.WaitGroup) error {
 			defer func() {
 				if r := recover(); r != nil {
 					println("Error ", r, " ", string(debug.Stack()))
+				}
+
+				if s.Ddos.MaxDeliveryConnections != 0 || s.Ddos.MaxConnections != 0 {
+					mConnections.Lock()
+					connections[ip]--
+					connectonsCount--
+					if connections[ip] == 0 {
+						delete(connections, ip)
+					}
+					mConnections.Unlock()
 				}
 			}()
 
@@ -320,10 +332,10 @@ func (s *server) Start(startWG *sync.WaitGroup) error {
 
 			if s.Ddos.MaxDeliveryConnections != 0 || s.Ddos.MaxConnections != 0 {
 				mConnections.Lock()
-				connections[c.RemoteIP]--
+				connections[ip]--
 				connectonsCount--
-				if connections[c.RemoteIP] == 0 {
-					delete(connections, c.RemoteIP)
+				if connections[ip] == 0 {
+					delete(connections, ip)
 				}
 				mConnections.Unlock()
 			}
