@@ -289,14 +289,14 @@ func (s *server) Start(startWG *sync.WaitGroup) error {
 		// DDOS protection: max connections per ip
 		if s.Ddos.MaxConnections != 0 {
 			mConnections.Lock()
+			if _, ok := connections[ip]; !ok {
+				connections[ip] = 0
+			}
 			if connections[ip] >= s.Ddos.MaxConnections {
 				mConnections.Unlock()
 				ddosListener(DdosEventMaxConnections, ip, int(clientID))
 				_ = conn.Close()
 				continue
-			}
-			if _, ok := connections[ip]; !ok {
-				connections[ip] = 0
 			}
 			connections[ip]++
 			mConnections.Unlock()
