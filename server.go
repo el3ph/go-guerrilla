@@ -329,16 +329,6 @@ func (s *server) Start(startWG *sync.WaitGroup) error {
 				// we could not get a client, so close the connection.
 				_ = conn.Close()
 			}
-
-			if s.Ddos.MaxDeliveryConnections != 0 || s.Ddos.MaxConnections != 0 {
-				mConnections.Lock()
-				connections[ip]--
-				connectonsCount--
-				if connections[ip] == 0 {
-					delete(connections, ip)
-				}
-				mConnections.Unlock()
-			}
 			// intentionally placed Borrow in args so that it's called in the
 			// same main goroutine.
 		}(s.clientPool.Borrow(conn, clientID, s.log(), s.envelopePool, s.listenInterface))
