@@ -293,6 +293,7 @@ func (s *server) Start(startWG *sync.WaitGroup) error {
 				connections[ip] = 0
 			}
 			if connections[ip] >= s.Ddos.MaxConnections {
+				connectonsCount--
 				mConnections.Unlock()
 				ddosListener(DdosEventMaxConnections, ip, int(clientID))
 				_ = conn.Close()
