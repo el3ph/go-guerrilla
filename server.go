@@ -617,6 +617,10 @@ func (s *server) handleClient(client *client) {
 			if n > int64(sc.Ddos.MaxMessageSize) {
 				ddosListener(DdosEventMaxMessageSize, client.RemoteIP, int(client.ID))
 				err = errors.New("Message size exceeds fixed maximum message size")
+
+				client.sendResponse(r.FailMessageSizeExceeded, " ", MessageSizeExceeded.Error())
+				client.kill()
+				break
 			}
 
 			if err != nil {
