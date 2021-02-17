@@ -201,6 +201,11 @@ func (s *server) setTimeout(seconds int) {
 	s.timeout.Store(duration)
 }
 
+// Set the ddos for the server and all clients
+func (s *server) setDDOS(ddosProtection DdosProtection) {
+	s.Ddos = ddosProtection
+}
+
 // goroutine safe config store
 func (s *server) setConfig(sc *ServerConfig) {
 	s.configStore.Store(*sc)
@@ -247,6 +252,7 @@ func (s *server) Start(startWG *sync.WaitGroup) error {
 	// DDOS protection
 	var mConnections sync.Mutex
 	var connections map[string]int = make(map[string]int)
+	var connectonsCount = 0
 	for {
 		s.log().Debugf("[%s] Waiting for a new client. Next Client ID: %d", s.listenInterface, clientID+1)
 		conn, err := listener.Accept()
@@ -267,28 +273,32 @@ func (s *server) Start(startWG *sync.WaitGroup) error {
 		}
 
 		// DDOS protection: max connections
+		var ip string = getRemoteAddr(conn)
 		if s.Ddos.MaxDeliveryConnections != 0 {
-			if len(connections) /*s.GetActiveClientsCount()*/ >= s.Ddos.MaxDeliveryConnections {
-				var ip string = getRemoteAddr(conn)
+			mConnections.Lock()
+			if connectonsCount /*s.GetActiveClientsCount()*/ >= s.Ddos.MaxDeliveryConnections {
+				mConnections.Unlock()
 				ddosListener(DdosEventMaxDeliveryConnections, ip, int(clientID))
 				_ = conn.Close()
 				continue
 			}
+			connectonsCount++
+			mConnections.Unlock()
 		}
 
 		// DDOS protection: max connections per ip
 		if s.Ddos.MaxConnections != 0 {
-			var ip string = getRemoteAddr(conn)
+			mConnections.Lock()
+			if _, ok := connections[ip]; !ok {
+				connections[ip] = 0
+			}
 			if connections[ip] >= s.Ddos.MaxConnections {
+				connectonsCount--
+				mConnections.Unlock()
 				ddosListener(DdosEventMaxConnections, ip, int(clientID))
 				_ = conn.Close()
 				continue
 			}
-		}
-
-		if s.Ddos.MaxDeliveryConnections != 0 || s.Ddos.MaxConnections != 0 {
-			var ip string = getRemoteAddr(conn)
-			mConnections.Lock()
 			connections[ip]++
 			mConnections.Unlock()
 		}
@@ -297,6 +307,16 @@ func (s *server) Start(startWG *sync.WaitGroup) error {
 			defer func() {
 				if r := recover(); r != nil {
 					println("Error ", r, " ", string(debug.Stack()))
+				}
+
+				if s.Ddos.MaxDeliveryConnections != 0 || s.Ddos.MaxConnections != 0 {
+					mConnections.Lock()
+					connections[ip]--
+					connectonsCount--
+					if connections[ip] == 0 {
+						delete(connections, ip)
+					}
+					mConnections.Unlock()
 				}
 			}()
 
@@ -309,15 +329,6 @@ func (s *server) Start(startWG *sync.WaitGroup) error {
 				s.log().WithError(borrowErr).Info("couldn't borrow a new client")
 				// we could not get a client, so close the connection.
 				_ = conn.Close()
-			}
-
-			if s.Ddos.MaxDeliveryConnections != 0 || s.Ddos.MaxConnections != 0 {
-				mConnections.Lock()
-				connections[c.RemoteIP]--
-				if connections[c.RemoteIP] == 0 {
-					delete(connections, c.RemoteIP)
-				}
-				mConnections.Unlock()
 			}
 			// intentionally placed Borrow in args so that it's called in the
 			// same main goroutine.
@@ -606,6 +617,10 @@ func (s *server) handleClient(client *client) {
 			if n > int64(sc.Ddos.MaxMessageSize) {
 				ddosListener(DdosEventMaxMessageSize, client.RemoteIP, int(client.ID))
 				err = errors.New("Message size exceeds fixed maximum message size")
+
+				client.sendResponse(r.FailMessageSizeExceeded, " ", MessageSizeExceeded.Error())
+				client.kill()
+				break
 			}
 
 			if err != nil {

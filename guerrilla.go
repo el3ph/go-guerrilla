@@ -183,6 +183,7 @@ func (g *guerrilla) setServerConfig(sc *ServerConfig) {
 	g.guard.Lock()
 	defer g.guard.Unlock()
 	if _, ok := g.servers[sc.ListenInterface]; ok {
+		g.servers[sc.ListenInterface].setDDOS(sc.Ddos)
 		g.servers[sc.ListenInterface].setConfig(sc)
 	}
 }
