@@ -450,6 +450,7 @@ func (s *server) handleClient(client *client) {
 
 	var connectionMessagesSent int = 0
 	r := response.Canned
+	var currentSizeTheSentMessage int64 = 0
 	for client.isAlive() {
 		switch client.state {
 		case ClientGreeting:
@@ -609,14 +610,16 @@ func (s *server) handleClient(client *client) {
 			client.bufin.setLimit(sc.MaxSize + 1024000) // This a hard limit.
 
 			n, err := client.Data.ReadFrom(client.smtpReader.DotReader())
+			currentSizeTheSentMessage += n
 			if n > sc.MaxSize {
 				err = fmt.Errorf("maximum DATA size exceeded (%d)", sc.MaxSize)
 			}
 
 			// DDOS protection
-			if n > int64(sc.Ddos.MaxMessageSize) {
+			if currentSizeTheSentMessage > int64(sc.Ddos.MaxMessageSize) {
 				ddosListener(DdosEventMaxMessageSize, client.RemoteIP, int(client.ID))
 				err = errors.New("Message size exceeds fixed maximum message size")
+
 
 				client.sendResponse(r.FailMessageSizeExceeded, " ", MessageSizeExceeded.Error())
 				client.kill()
@@ -641,6 +644,7 @@ func (s *server) handleClient(client *client) {
 
 			res := s.backend().Process(client.Envelope)
 			if res.Code() < 300 {
+				currentSizeTheSentMessage = 0
 				client.messagesSent++
 				connectionMessagesSent++
 			}
