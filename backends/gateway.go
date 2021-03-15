@@ -148,7 +148,7 @@ func (gw *BackendGateway) Process(e *mail.Envelope) Result {
 		// A custom result, there was probably an error, if so, log it
 		if status.result != nil {
 			if status.err != nil {
-				Log().Error(status.err)
+				Log().Error(status.err, "\n")
 			}
 			return status.result
 		}
@@ -163,11 +163,11 @@ func (gw *BackendGateway) Process(e *mail.Envelope) Result {
 
 		// both result & error are nil (should not happen)
 		err := errors.New("no response from backend - processor did not return a result or an error")
-		Log().Error(err)
+		Log().Error(err, "\n")
 		return NewResult(response.Canned.FailBackendTransaction, response.SP, err)
 
 	case <-time.After(gw.saveTimeout()):
-		Log().Error("Backend has timed out while saving email")
+		Log().Error("Backend has timed out while saving email\n")
 		e.Lock() // lock the envelope - it's still processing here, we don't want the server to recycle it
 		go func() {
 			// keep waiting for the backend to finish processing
@@ -209,7 +209,7 @@ func (gw *BackendGateway) ValidateRcpt(e *mail.Envelope) RcptError {
 			<-workerMsg.notifyMe
 			e.Unlock()
 			workerMsgPool.Put(workerMsg)
-			Log().Error("Backend has timed out while validating rcpt")
+			Log().Error("Backend has timed out while validating rcpt\n")
 		}()
 		return StorageTimeout
 	}
@@ -434,7 +434,7 @@ func (gw *BackendGateway) workDispatcher(
 		// since processors may call arbitrary code, some may be 3rd party / unstable
 		// we need to detect the panic, and notify the backend that it failed & unlock the envelope
 		if r := recover(); r != nil {
-			Log().Error("worker recovered from panic:", r, string(debug.Stack()))
+			Log().Error("worker recovered from panic:", r, string(debug.Stack()), "\n")
 
 			if state == dispatcherStateWorking {
 				msg.notifyMe <- &notifyMsg{err: errors.New("storage failed")}
@@ -446,12 +446,12 @@ func (gw *BackendGateway) workDispatcher(
 
 	}()
 	state = dispatcherStateIdle
-	Log().Infof("processing worker started (#%d)", workerId)
+	Log().Infof("processing worker started (#%d)\n", workerId)
 	for {
 		select {
 		case <-stop:
 			state = dispatcherStateStopped
-			Log().Infof("stop signal for worker (#%d)", workerId)
+			Log().Infof("stop signal for worker (#%d)\n", workerId)
 			return
 		case msg = <-workIn:
 			state = dispatcherStateWorking // recovers from panic if in this state

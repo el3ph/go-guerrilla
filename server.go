@@ -104,11 +104,11 @@ func newServer(sc *ServerConfig, b backends.Backend, mainlog log.Logger) (*serve
 	if sc.LogFile == "" {
 		// none set, use the mainlog for the server log
 		server.logStore.Store(mainlog)
-		server.log().Info("server [" + sc.ListenInterface + "] did not configure a separate log file, so using the main log")
+		server.log().Info("server [" + sc.ListenInterface + "] did not configure a separate log file, so using the main log\n")
 	} else {
 		// set level to same level as mainlog level
 		if l, logOpenError := log.GetLogger(sc.LogFile, server.mainlog().GetLevel()); logOpenError != nil {
-			server.log().WithError(logOpenError).Errorf("Failed creating a logger for server [%s]", sc.ListenInterface)
+			server.log().WithError(logOpenError).Errorf("Failed creating a logger for server [%s]\n", sc.ListenInterface)
 			return server, logOpenError
 		} else {
 			server.logStore.Store(l)
@@ -161,7 +161,7 @@ func (s *server) configureSSL() error {
 		if len(sConfig.TLS.RootCAs) > 0 {
 			caCert, err := ioutil.ReadFile(sConfig.TLS.RootCAs)
 			if err != nil {
-				s.log().WithError(err).Errorf("failed opening TLSRootCAs file [%s]", sConfig.TLS.RootCAs)
+				s.log().WithError(err).Errorf("failed opening TLSRootCAs file [%s]\n", sConfig.TLS.RootCAs)
 			} else {
 				caCertPool := x509.NewCertPool()
 				caCertPool.AppendCertsFromPEM(caCert)
@@ -242,10 +242,10 @@ func (s *server) Start(startWG *sync.WaitGroup) error {
 	if err != nil {
 		startWG.Done() // don't wait for me
 		s.state = ServerStateStartError
-		return fmt.Errorf("[%s] Cannot listen on port: %s ", s.listenInterface, err.Error())
+		return fmt.Errorf("[%s] Cannot listen on port: %s \n", s.listenInterface, err.Error())
 	}
 
-	s.log().Infof("Listening on TCP %s", s.listenInterface)
+	s.log().Infof("Listening on TCP %s\n", s.listenInterface)
 	s.state = ServerStateRunning
 	startWG.Done() // start successful, don't wait for me
 
@@ -254,21 +254,21 @@ func (s *server) Start(startWG *sync.WaitGroup) error {
 	var connections map[string]int = make(map[string]int)
 	var connectonsCount = 0
 	for {
-		s.log().Debugf("[%s] Waiting for a new client. Next Client ID: %d", s.listenInterface, clientID+1)
+		s.log().Debugf("[%s] Waiting for a new client. Next Client ID: %d\n", s.listenInterface, clientID+1)
 		conn, err := listener.Accept()
 		clientID++
 		if err != nil {
 			if e, ok := err.(net.Error); ok && !e.Temporary() {
-				s.log().Infof("Server [%s] has stopped accepting new clients", s.listenInterface)
+				s.log().Infof("Server [%s] has stopped accepting new clients\n", s.listenInterface)
 				// the listener has been closed, wait for clients to exit
-				s.log().Infof("shutting down pool [%s]", s.listenInterface)
+				s.log().Infof("shutting down pool [%s]\n", s.listenInterface)
 				s.clientPool.ShutdownState()
 				s.clientPool.ShutdownWait()
 				s.state = ServerStateStopped
 				s.closedListener <- true
 				return nil
 			}
-			s.mainlog().WithError(err).Info("Temporary error accepting client")
+			s.mainlog().WithError(err).Info("Temporary error accepting client\n")
 			continue
 		}
 
@@ -326,7 +326,7 @@ func (s *server) Start(startWG *sync.WaitGroup) error {
 				s.envelopePool.Return(c.Envelope)
 				s.clientPool.Return(c)
 			} else {
-				s.log().WithError(borrowErr).Info("couldn't borrow a new client")
+				s.log().WithError(borrowErr).Info("couldn't borrow a new client\n")
 				// we could not get a client, so close the connection.
 				_ = conn.Close()
 			}
@@ -413,7 +413,7 @@ func (s *server) isShuttingDown() bool {
 func (s *server) handleClient(client *client) {
 	defer client.closeConn()
 	sc := s.configStore.Load().(ServerConfig)
-	s.log().Infof("Handle client [%s], id: %d", client.RemoteIP, client.ID)
+	s.log().Infof("Handle client [%s], id: %d\n", client.RemoteIP, client.ID)
 
 	// Initial greeting
 	greeting := fmt.Sprintf("220 %s -- Zecurion DLP -- Service ready", sc.Hostname)
@@ -434,11 +434,11 @@ func (s *server) handleClient(client *client) {
 	if sc.TLS.AlwaysOn {
 		tlsConfig, ok := s.tlsConfigStore.Load().(*tls.Config)
 		if !ok {
-			s.mainlog().Error("Failed to load *tls.Config")
+			s.mainlog().Error("Failed to load *tls.Config\n")
 		} else if err := client.upgradeToTLS(tlsConfig); err == nil {
 			advertiseTLS = ""
 		} else {
-			s.log().WithError(err).Warnf("[%s] Failed TLS handshake", client.RemoteIP)
+			s.log().WithError(err).Warnf("[%s] Failed TLS handshake\n", client.RemoteIP)
 			// server requires TLS, but can't handshake
 			client.kill()
 		}
@@ -459,23 +459,23 @@ func (s *server) handleClient(client *client) {
 		case ClientCmd:
 			client.bufin.setLimit(CommandLineMaxLength)
 			input, err := s.readCommand(client)
-			s.log().Debugf("Client sent: %s", input)
+			s.log().Debugf("Client sent: %s\n", input)
 			if err == io.EOF {
-				s.log().WithError(err).Warnf("Client closed the connection: %s", client.RemoteIP)
+				s.log().WithError(err).Warnf("Client closed the connection: %s\n", client.RemoteIP)
 				return
 			} else if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 				// DDOS protection: connection timeout
 				if sc.Ddos.TimeoutReception != 0 {
 					ddosListener(DdosEventTimeoutReception, client.RemoteIP, int(client.ID))
 				}
-				s.log().WithError(err).Warnf("Timeout: %s", client.RemoteIP)
+				s.log().WithError(err).Warnf("Timeout: %s\n", client.RemoteIP)
 				return
 			} else if err == LineLimitExceeded {
 				client.sendResponse(r.FailLineTooLong)
 				client.kill()
 				break
 			} else if err != nil {
-				s.log().WithError(err).Warnf("Read error: %s", client.RemoteIP)
+				s.log().WithError(err).Warnf("Read error: %s\n", client.RemoteIP)
 				client.kill()
 				break
 			}
@@ -534,7 +534,7 @@ func (s *server) handleClient(client *client) {
 				}
 				client.MailFrom, err = client.parsePath(input[10:], client.parser.MailFrom)
 				if err != nil {
-					s.log().WithError(err).Error("MAIL parse error", "["+string(input[10:])+"]")
+					s.log().WithError(err).Error("MAIL parse error", "["+string(input[10:])+"]\n")
 					client.sendResponse(err)
 					break
 				} else if client.parser.NullPath {
@@ -550,7 +550,7 @@ func (s *server) handleClient(client *client) {
 				}
 				to, err := client.parsePath(input[8:], client.parser.RcptTo)
 				if err != nil {
-					s.log().WithError(err).Error("RCPT parse error", "["+string(input[8:])+"]")
+					s.log().WithError(err).Error("RCPT parse error", "["+string(input[8:])+"]\n")
 					client.sendResponse(err.Error())
 					break
 				}
@@ -637,7 +637,7 @@ func (s *server) handleClient(client *client) {
 					client.sendResponse(r.FailReadErrorDataCmd, " ", err.Error())
 					client.kill()
 				}
-				s.log().WithError(err).Warn("Error reading data")
+				s.log().WithError(err).Warn("Error reading data\n")
 				client.resetTransaction()
 				break
 			}
@@ -674,7 +674,7 @@ func (s *server) handleClient(client *client) {
 					advertiseTLS = ""
 					client.resetTransaction()
 				} else {
-					s.log().WithError(err).Warnf("[%s] Failed TLS handshake", client.RemoteIP)
+					s.log().WithError(err).Warnf("[%s] Failed TLS handshake\n", client.RemoteIP)
 					// Don't disconnect, let the client decide if it wants to continue
 				}
 			}
@@ -687,17 +687,17 @@ func (s *server) handleClient(client *client) {
 		}
 
 		if client.bufErr != nil {
-			s.log().WithError(client.bufErr).Debug("client could not buffer a response")
+			s.log().WithError(client.bufErr).Debug("client could not buffer a response\n")
 			return
 		}
 		// flush the response buffer
 		if client.bufout.Buffered() > 0 {
 			if s.log().IsDebug() {
-				s.log().Debugf("Writing response to client: \n%s", client.response.String())
+				s.log().Debugf("Writing response to client: \n%s\n", client.response.String())
 			}
 			err := s.flushResponse(client)
 			if err != nil {
-				s.log().WithError(err).Debug("error writing response")
+				s.log().WithError(err).Debug("error writing response\n")
 				return
 			}
 		}
