@@ -1,4 +1,4 @@
-module go-guerrilla
+module github.com/el3ph/go-guerrilla
 
 go 1.12
 
