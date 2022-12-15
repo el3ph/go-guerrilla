@@ -1,4 +1,4 @@
-module guerrilla
+module go-guerrilla
 
 go 1.12
 
